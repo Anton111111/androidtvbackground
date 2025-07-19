@@ -1,5 +1,6 @@
+from dotenv import load_dotenv
 import requests
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from io import BytesIO
 import os
 import shutil
@@ -7,28 +8,36 @@ from urllib.request import urlopen
 import textwrap
 from datetime import datetime, timedelta
 
+load_dotenv()  # take environment variables from .env.
+
+# If TMDB API Read Access Token key is not hardcoded, then load from environment variables
+token = os.getenv('TMDBTOKEN')  
 # Base URL for the API
 url = "https://api.themoviedb.org/3/"
 
 # Set your TMDB API Read Access Token key here
 headers = {
     "accept": "application/json",
-    "Authorization": "Bearer XXXXX"
+    "Authorization": f"Bearer {token}"
 }
 
 # TV Exclusion list - this filter will exclude Tv shows from chosen countries that have a specific genre
-tv_excluded_countries=['XX','XX','XX'] #based on ISO 3166-1 alpha-2 codes, enter lowercase like ['cn','kr','jp','fr','us']
-tv_excluded_genres=['XXXX'] # like ['Animation']
+tv_excluded_countries=[] #based on ISO 3166-1 alpha-2 codes, enter lowercase like ['cn','kr','jp','fr','us']
+tv_excluded_genres=[] # like ['Animation']
 
 # Movie Exclusion list - this filter will exclude movies from chosen countries that have a specific genre
-movie_excluded_countries=['XX','XX','XXX'] #based on ISO 3166-1 alpha-2 codes, enter lowercase like ['cn','kr','jp','fr','us']
-movie_excluded_genres=['XXX'] # like ['Animation']
+movie_excluded_countries=[] #based on ISO 3166-1 alpha-2 codes, enter lowercase like ['cn','kr','jp','fr','us']
+movie_excluded_genres=[] # like ['Animation']
 
 # Keyword exclusion list - this filter will exclude movies or tv shows that contain a specific keyword in their TMDB profile
-excluded_keywords = ['XXX','XXX','XXX'] # like ['adult']
+excluded_keywords = ['adult'] # like ['adult']
 
 # Filter movies by release date and tv shows by last air date
-max_air_date = datetime.now() - timedelta(days=30) #specify the number of days since the movei release or the tv show last air date, shows before this date will be excluded 
+max_air_date = datetime.now() - timedelta(days=365) #specify the number of days since the movei release or the tv show last air date, shows before this date will be excluded 
+
+#Language
+language = "ru-RU"
+language_short = "ru"
 
 # Save font locally
 truetype_url = 'https://github.com/googlefonts/roboto/raw/main/src/hinted/Roboto-Light.ttf'
@@ -47,8 +56,14 @@ if not os.path.exists(truetype_path):
 
 
 # Endpoint for trending shows
-trending_movies_url = f'{url}trending/movie/week?language=en-US'
-trending_tvshows_url = f'{url}trending/tv/week?language=en-US'
+trending_movies_url = f'{url}trending/movie/week?language={language}'
+trending_tvshows_url = f'{url}trending/tv/week?language={language}'
+
+# Endpoint for discover shows
+start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+end_date = datetime.now().strftime("%Y-%m-%d")
+discover_movies_url = f'{url}discover/movie?sort_by=popularity.desc&language={language}&include_adult=false&page=1&with_release_type=4|5|6&include_video=false&vote_average.gte=1&vote_count.gte=50&with_runtime.gte=15&without_genres=99&release_date.gte={start_date}&release_date.lte={end_date}'
+discover_tvshows_url = f'{url}discover/tv?sort_by=popularity.desc&language={language}&include_adult=false&page=1&vote_average.gte=1&vote_count.gte=50&with_runtime.gte=15&without_genres=99|16&first_air_date.gte={start_date}&first_air_date.lte={end_date}'
 
 # Fetching trending movies
 trending_movies_response = requests.get(trending_movies_url, headers=headers)
@@ -58,27 +73,35 @@ trending_movies = trending_movies_response.json()
 trending_tvshows_response = requests.get(trending_tvshows_url, headers=headers)
 trending_tvshows = trending_tvshows_response.json()
 
+# Fetching discover movies
+discover_movies_response = requests.get(discover_movies_url, headers=headers)
+discover_movies = discover_movies_response.json()
+
+# Fetching discover TV shows
+discover_tvshows_response = requests.get(discover_tvshows_url, headers=headers)
+discover_tvshows = discover_tvshows_response.json()
+
 # Fetching genres for movies
-genres_url = f'{url}genre/movie/list?language=en-US'
+genres_url = f'{url}genre/movie/list?language={language}'
 genres_response = requests.get(genres_url, headers=headers)
 genres_data = genres_response.json()
 movie_genres = {genre['id']: genre['name'] for genre in genres_data.get('genres', [])}
 
 # Fetching genres for TV shows
-genres_url = f'{url}genre/tv/list?language=en-US'
+genres_url = f'{url}genre/tv/list?language={language}'
 genres_response = requests.get(genres_url, headers=headers)
 genres_data = genres_response.json()
 tv_genres = {genre['id']: genre['name'] for genre in genres_data.get('genres', [])}
 
 # Fetching TV show details
 def get_tv_show_details(tv_id):
-    tv_details_url = f'{url}tv/{tv_id}?language=en-US'
+    tv_details_url = f'{url}tv/{tv_id}?language={language}'
     tv_details_response = requests.get(tv_details_url, headers=headers)
     return tv_details_response.json()
 
 # Fetching movie details
 def get_movie_details(movie_id):
-    movie_details_url = f'{url}movie/{movie_id}?language=en-US'
+    movie_details_url = f'{url}movie/{movie_id}?language={language}'
     movie_details_response = requests.get(movie_details_url, headers=headers)
     return movie_details_response.json()
 
@@ -148,15 +171,15 @@ def clean_filename(filename):
     cleaned_filename = "".join(c if c.isalnum() or c in "._-" else "_" for c in filename)
     return cleaned_filename
 
-# Fetch movie or TV show logo in English
-def get_logo(media_type, media_id, language="en"):
+# Fetch movie or TV show logo
+def get_logo(media_type, media_id, language=language_short):
     logo_url = f"{url}{media_type}/{media_id}/images?language={language}"
     logo_response = requests.get(logo_url, headers=headers)
     logo_data = logo_response.json()
     if logo_response.status_code == 200:
         logos = logo_response.json().get("logos", [])
         for logo in logos:
-            if logo["iso_639_1"] == "en" and logo["file_path"].endswith(".png"):
+            if logo["iso_639_1"] == language_short and logo["file_path"].endswith(".png"):
                 return logo["file_path"]
     return None
 
@@ -178,7 +201,7 @@ def process_image(image_url, title, is_movie, genre, year, rating, duration=None
         # Paste images
         bckg.paste(image, (1175, 0))
         bckg.paste(overlay, (1175, 0), overlay)
-        bckg.paste(tmdblogo, (680, 890), tmdblogo)
+        #bckg.paste(tmdblogo, (680, 890), tmdblogo)
 
         # Add title text with shadow
         draw = ImageDraw.Draw(bckg)
@@ -202,11 +225,11 @@ def process_image(image_url, title, is_movie, genre, year, rating, duration=None
         custom_position = (210, 870)
 
         # Wrap overview text
-        wrapped_overview = "\n".join(textwrap.wrap(overview, width=70, max_lines=2, placeholder=" ..."))
+        #wrapped_overview = "\n".join(textwrap.wrap(overview, width=70, max_lines=2, placeholder=" ..."))
 
         # Draw Overview for info
-        draw.text((overview_position[0] + shadow_offset, overview_position[1] + shadow_offset), wrapped_overview, font=font_overview, fill=shadow_color)
-        draw.text(overview_position, wrapped_overview, font=font_overview, fill=metadata_color)
+        #draw.text((overview_position[0] + shadow_offset, overview_position[1] + shadow_offset), wrapped_overview, font=font_overview, fill=shadow_color)
+        #draw.text(overview_position, wrapped_overview, font=font_overview, fill=metadata_color)
 
         # Determine genre text and additional info
         if is_movie:
@@ -226,9 +249,9 @@ def process_image(image_url, title, is_movie, genre, year, rating, duration=None
 
         # Get logo image URL
         if is_movie:
-            logo_path = get_logo("movie", movie['id'], language="en")
+            logo_path = get_logo("movie", movie['id'], language=language_short)
         else:
-            logo_path = get_logo("tv", tvshow['id'], language="en")
+            logo_path = get_logo("tv", tvshow['id'], language=language_short)
 
         logo_drawn = False  # Flag to track if logo is drawn
 
@@ -312,8 +335,9 @@ def should_exclude_tvshow(tvshow, tv_excluded_countries=tv_excluded_countries, t
     return False
 
 
-# Process each trending movie
-for movie in trending_movies.get('results', []):
+# Process each movie
+movies = trending_movies.get('results', []) + discover_movies.get('results', [])
+for movie in movies:
     if should_exclude_movie(movie):
         continue
     
@@ -332,13 +356,13 @@ for movie in trending_movies.get('results', []):
     if duration:
         hours = duration // 60
         minutes = duration % 60
-        duration = f"{hours}h{minutes}min"
+        duration = f"{hours}ч {minutes}мин"
     else:
         duration = "N/A"
 
     # Check if backdrop image is available
     backdrop_path = movie['backdrop_path']
-    custom_text = "Now Trending on"
+    custom_text = ""#"Now Trending on"
     if backdrop_path:
         # Construct image URL
         image_url = f"https://image.tmdb.org/t/p/original{backdrop_path}"
@@ -350,8 +374,9 @@ for movie in trending_movies.get('results', []):
 
 
 
-# Process trending TV shows
-for tvshow in trending_tvshows.get('results', []):
+# Process TV shows
+tvshows = trending_tvshows.get('results', []) + discover_tvshows.get('results', [])
+for tvshow in tvshows:
     if should_exclude_tvshow(tvshow):
         continue
 
@@ -368,7 +393,7 @@ for tvshow in trending_tvshows.get('results', []):
     
     # Check if backdrop image is available
     backdrop_path = tvshow['backdrop_path']
-    custom_text = "Now Trending on"
+    custom_text = ""#"Now Trending on"
     if backdrop_path:
         # Construct image URL
         image_url = f"https://image.tmdb.org/t/p/original{backdrop_path}"
