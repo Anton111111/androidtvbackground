@@ -64,7 +64,7 @@ def upload_images(subreddit_name, folder_path):
         except Exception as e:
             print(f"❌ Failed to approve: {e}")
 
-        time.sleep(10)  # Avoid rate limits
+        time.sleep(2)  # Avoid rate limits
 
 def main():
     delete_own_posts(SUBREDDIT_NAME)
