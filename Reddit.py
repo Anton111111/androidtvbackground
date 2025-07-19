@@ -1,13 +1,16 @@
+from dotenv import load_dotenv
 import os
 import time
 import praw
 
-reddit_client_id = locals().get('token', os.getenv('REDDIT_CLIENT_ID'))  # TMDB API token either hardcoded from environment
-reddit_client_secret = locals().get('token', os.getenv('REDDIT_CLIENT_SECRET'))
-reddit_username = locals().get('token', os.getenv('REDDIT_USERNAME'))
-reddit_password = locals().get('token', os.getenv('REDDIT_PASSWORD'))
-reddit_user_agent = locals().get('token', os.getenv('REDDIT_USER_AGENT'))
-subreddit_name = locals().get('token', os.getenv('SUBREDDIT_NAME'))
+load_dotenv()  # Load environment variables from .env file
+
+reddit_client_id = os.getenv('REDDIT_CLIENT_ID')  # TMDB API token either hardcoded from environment
+reddit_client_secret = os.getenv('REDDIT_CLIENT_SECRET')
+reddit_username = os.getenv('REDDIT_USERNAME')
+reddit_password = os.getenv('REDDIT_PASSWORD')
+reddit_user_agent = os.getenv('REDDIT_USER_AGENT')
+subreddit_name = os.getenv('SUBREDDIT_NAME')
 
 REDDIT_CLIENT_ID = reddit_client_id
 REDDIT_CLIENT_SECRET = reddit_client_secret
