@@ -60,7 +60,8 @@ if not os.path.exists(truetype_path):
     except Exception as e:
         print(f"An error occurred while downloading the Roboto-Light font: {e}")
 
-
+movies_max = 10  # specify the maximum number of movies to fetch
+tvshows_max = 10  # specify the maximum number of TV shows to fetch
 # Endpoint for trending shows
 trending_movies_url = f"{url}trending/movie/week?language={language}"
 trending_tvshows_url = f"{url}trending/tv/week?language={language}"
@@ -407,7 +408,13 @@ def is_russian(text):
 
 
 # Process each movie
+
 movies = trending_movies.get("results", []) + discover_movies.get("results", [])
+# Sort movies by rating (descending)
+movies = sorted(movies, key=lambda m: m.get("vote_average", 0), reverse=True)
+
+# Limit to movies_max
+movies = movies[:movies_max]
 for movie in movies:
     title = movie["title"]
     if not is_russian(title):
@@ -459,6 +466,11 @@ for movie in movies:
 
 # Process TV shows
 tvshows = trending_tvshows.get("results", []) + discover_tvshows.get("results", [])
+# Sort TV shows by rating (descending)
+tvshows = sorted(tvshows, key=lambda t: t.get("vote_average", 0), reverse=True)
+
+# Limit to tvshows_max
+tvshows = tvshows[:tvshows_max]
 for tvshow in tvshows:
     title = truncate_overview(tvshow["name"], 38)
     if not is_russian(title):
